@@ -44,11 +44,21 @@ def criar_tabelas() -> None:
 
 
 def salvar_candles(ativo: str, candles: Iterable[tuple]) -> None:
+    """Insere candles no banco convertendo datas para texto."""
     conn = conectar()
     cur = conn.cursor()
+
+    preparados = []
+    for candle in candles:
+        linha = list(candle)
+        # garante que open_time seja uma string compatível com SQLite
+        if hasattr(linha[1], "isoformat"):
+            linha[1] = linha[1].isoformat()
+        preparados.append(tuple(linha))
+
     cur.executemany(
         "INSERT INTO candles (ativo, open_time, open, high, low, close, volume) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        candles,
+        preparados,
     )
     conn.commit()
     conn.close()
