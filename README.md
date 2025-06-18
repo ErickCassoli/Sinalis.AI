@@ -14,12 +14,12 @@ informações.
 ## Requisitos
 
 - Python 3.12 ou superior
-- Bibliotecas: `pandas`, `requests`, `ta`, `numpy`
+- Dependências listadas em `requirements.txt`
 
 Instalação das dependências:
 
 ```bash
-pip install pandas requests ta numpy
+pip install -r requirements.txt
 ```
 
 ## Execução
@@ -37,5 +37,12 @@ python main.py
 ```
 
 O script roda continuamente a cada 5 minutos coletando novos candles, calculando
-indicadores e registrando no banco. Caso não seja possível acessar a API da 
+indicadores e registrando no banco. Caso não seja possível acessar a API da
 Binance, verifique restrições de rede.
+
+### Integração com outras APIs
+
+Para enviar os sinais gerados para outro serviço, defina a variável
+`API_ENDPOINT` em `sinalis/config.py` com a URL desejada. O módulo
+`sinalis.api` enviará automaticamente um POST com as informações do sinal
+sempre que um "compra" ou "venda" for identificado.

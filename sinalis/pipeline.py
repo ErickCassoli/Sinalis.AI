@@ -9,6 +9,7 @@ from .fetcher import get_binance_klines
 from .indicators import add_indicators
 from .patterns import detect_patterns
 from .signals import classify_signals
+from .api import send_signal
 from .risk import RiskManager
 
 
@@ -23,6 +24,12 @@ def process_interval(symbol: str, interval: str) -> None:
             print(
                 f"{row['open_time']} {interval}: {row['signal']} -> {row['signal_reason']}"
             )
+            send_signal({
+                "time": row["open_time"].isoformat(),
+                "interval": interval,
+                "signal": row["signal"],
+                "reason": row["signal_reason"],
+            })
 
 def main() -> None:
     """Entry point for signal generation loop."""
