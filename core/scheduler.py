@@ -1,35 +1,49 @@
 import time
-import pandas as pd
-from collectors import binance, iqoption
+import schedule
+from collectors import coletor_universal
+from indicators.rsi import adicionar_rsi
+from indicators.macd import adicionar_macd
+from indicators.bollinger import adicionar_bbands
+from patterns import engolfo_de_alta, engolfo_de_baixa
+from agents import agente_decisao
+from db import database
 from core import config
-from core.utils import identificar_fonte
-from agents import agente_tecnico, agente_comportamental, agente_validacao, agente_risco
-from db import sqlite_manager
 
 
-def ciclo(ativo: str, perdas: int = 0) -> None:
-    fonte = identificar_fonte(ativo)
-    if fonte == "binance":
-        df = binance.coletar_dados(ativo, config.TIMEFRAME, 100)
-    else:
-        df = iqoption.coletar_dados(ativo, config.TIMEFRAME, 100)
-
-    sinais = [
-        agente_tecnico.avaliar(df),
-        agente_comportamental.avaliar(df),
-    ]
-    sinal_final = agente_validacao.validar(sinais)
-    sinal_final = agente_risco.aplicar_gerenciamento(sinal_final, perdas)
-
-    candles_to_save = df[["open_time", "open", "high", "low", "close", "volume"]]
-    sqlite_manager.salvar_candles(ativo, [tuple([ativo] + list(row)) for row in candles_to_save.values])
-    if sinal_final:
-        sqlite_manager.salvar_sinal(ativo, sinal_final["sinal"], sinal_final["motivo"])
-        print(time.ctime(), sinal_final)
+def executar_ciclo(ativo: str = config.ATIVO_PADRAO) -> None:
+    """Executa uma etapa completa de coleta e geração de sinal."""
+    df = coletor_universal.coletar_dados(ativo, config.TIMEFRAME, 100)
+    if df.empty:
+        return
+    df = adicionar_rsi(adicionar_macd(adicionar_bbands(df)))
+    ultimo = df.iloc[-1]
+    penultimo = df.iloc[-2] if len(df) > 1 else df.iloc[-1]
+    indicadores = {"rsi": ultimo["rsi"]}
+    padroes = {
+        "engolfo_alta": engolfo_de_alta(ultimo, penultimo),
+        "engolfo_baixa": engolfo_de_baixa(ultimo, penultimo),
+    }
+    sinal = agente_decisao.gerar_sinal(ultimo, indicadores, padroes)
+    database.salvar_candle(
+        (
+            ativo,
+            ultimo["open_time"],
+            ultimo["open"],
+            ultimo["high"],
+            ultimo["low"],
+            ultimo["close"],
+            ultimo["volume"],
+        )
+    )
+    if sinal != "neutro":
+        database.salvar_sinal(ativo, sinal, "decisao_base")
+    print(time.ctime(), sinal)
 
 
 def iniciar() -> None:
-    sqlite_manager.criar_tabelas()
+    database.criar_tabelas()
+    schedule.every(5).minutes.do(executar_ciclo)
+    executar_ciclo()
     while True:
-        ciclo(config.ATIVO_PADRAO)
-        time.sleep(300)
+        schedule.run_pending()
+        time.sleep(1)

@@ -1,17 +1,17 @@
 import pandas as pd
-from patterns.candles import detectar_doji, detectar_martelo, detectar_engolfo
+from patterns import doji, martelo, engolfo_de_alta, engolfo_de_baixa
 
 
 def avaliar(df: pd.DataFrame) -> dict | None:
-    """Gera sinal baseado em padrões de candles."""
-    df = detectar_doji(detectar_martelo(detectar_engolfo(df)))
+    """Gera sinal baseado em padrões de candles simples."""
     ultimo = df.iloc[-1]
-    if ultimo.get("martelo"):
+    anterior = df.iloc[-2] if len(df) > 1 else df.iloc[-1]
+    if martelo(ultimo):
         return {"sinal": "reversao", "motivo": "martelo"}
-    if ultimo.get("engolfo_alta"):
+    if engolfo_de_alta(ultimo, anterior):
         return {"sinal": "alta", "motivo": "engolfo_alta"}
-    if ultimo.get("engolfo_baixa"):
+    if engolfo_de_baixa(ultimo, anterior):
         return {"sinal": "baixa", "motivo": "engolfo_baixa"}
-    if ultimo.get("doji"):
+    if doji(ultimo):
         return {"sinal": "indefinido", "motivo": "doji"}
     return None
