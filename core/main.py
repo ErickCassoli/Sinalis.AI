@@ -1,5 +1,5 @@
-from core import scheduler
-
+from core.pipeline import iniciar
 
 if __name__ == "__main__":
-    scheduler.iniciar()
+    iniciar()
+    print("🚀 Iniciando o bot de trading...")
