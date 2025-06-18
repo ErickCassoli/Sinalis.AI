@@ -6,6 +6,7 @@ from indicators.macd import adicionar_macd
 from indicators.bollinger import adicionar_bbands
 from patterns import engolfo_de_alta, engolfo_de_baixa
 from agents import agente_decisao
+from agents import agente_ia
 from db import database
 from core import config
 
@@ -38,11 +39,17 @@ def executar_ciclo(ativo: str = config.ATIVO_PADRAO) -> None:
     if sinal != "neutro":
         database.salvar_sinal(ativo, sinal, "decisao_base")
     print(time.ctime(), sinal)
+    ia = agente_ia.gerar_sinal_ia(df)
+    if ia is not None:
+        database.salvar_sinal(ativo, ia["sinal"], ia["motivo"])
+        print(time.ctime(), ia["sinal"], ia["confianca"])
+    else:
+        print(time.ctime(), sinal)
 
 
 def iniciar() -> None:
     database.criar_tabelas()
-    schedule.every(5).minutes.do(executar_ciclo)
+    schedule.every(30).seconds.do(executar_ciclo)
     executar_ciclo()
     while True:
         schedule.run_pending()
