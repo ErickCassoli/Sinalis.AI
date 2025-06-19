@@ -12,11 +12,12 @@ from indicators.rsi import adicionar_rsi
 from indicators.macd import adicionar_macd
 from indicators.bollinger import adicionar_bbands
 from patterns import engolfo_de_alta, engolfo_de_baixa
-from agents import agente_decisao
+from agents import agente_decisao, agente_ia
 from core import config
 
 ATIVO = "BTCUSDT"
-TIMEFRAME = "5m"
+TIMEFRAME = "1m"
+TIMER = "30s"
 HISTORICO_MINIMO = 8640  # 30 dias de candles de 5 minutos
 
 
@@ -134,19 +135,24 @@ def coletar_e_processar() -> None:
             "engolfo_alta": engolfo_de_alta(atual, anterior),
             "engolfo_baixa": engolfo_de_baixa(atual, anterior),
         }
-        sinal = agente_decisao.gerar_sinal(atual, indicadores, padroes)
-        if sinal != "neutro":
-            database.salvar_sinal(ATIVO, sinal, "pipeline")
-            print("✅ Sinal gerado:", sinal)
+        sinal_ia = agente_ia.gerar_sinal_ia(df_hist)
+        if sinal_ia:
+            database.salvar_sinal(ATIVO, sinal_ia["sinal"], sinal_ia["motivo"])
+            print("✅ Sinal IA:", sinal_ia)
         else:
-            print("Sinal neutro")
+            sinal = agente_decisao.gerar_sinal(atual, indicadores, padroes)
+            if sinal != "neutro":
+                database.salvar_sinal(ATIVO, sinal, "pipeline")
+                print("✅ Sinal gerado:", sinal)
+            else:
+                print("Sinal neutro")
     except Exception as exc:
         print("❌ Erro no ciclo:", exc)
 
 
 def iniciar_schedule():
-    print("⏱️ Iniciando agendamento a cada 5 minutos...")
-    schedule.every(5).minutes.do(coletar_e_processar)
+    print(f"⏱️ Iniciando agendamento a cada {TIMER}...")
+    schedule.every(30).seconds.do(coletar_e_processar)
     coletar_e_processar()  # roda a primeira vez já
     while True:
         schedule.run_pending()
