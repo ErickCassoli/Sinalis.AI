@@ -1,6 +1,6 @@
 import sqlite3
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Optional
 
 from core import config
 
@@ -35,8 +35,15 @@ def criar_tabelas() -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             ativo TEXT,
             timestamp TEXT,
+            candle_time TEXT,
             sinal TEXT,
-            motivo TEXT
+            motivo TEXT,
+            modo TEXT,
+            expiracao INTEGER,
+            tp REAL,
+            sl REAL,
+            confianca REAL,
+            resultado TEXT
         )"""
     )
     conn.commit()
@@ -64,12 +71,69 @@ def salvar_candles(ativo: str, candles: Iterable[tuple]) -> None:
     conn.close()
 
 
-def salvar_sinal(ativo: str, sinal: str, motivo: str) -> None:
+def salvar_sinal(
+    ativo: str,
+    sinal: str,
+    motivo: str,
+    modo: str,
+    expiracao: Optional[int],
+    tp: Optional[float],
+    sl: Optional[float],
+    confianca: Optional[float],
+    candle_time: str,
+) -> None:
     conn = conectar()
     cur = conn.cursor()
     cur.execute(
-        "INSERT INTO sinais (ativo, timestamp, sinal, motivo) VALUES (?, datetime('now'), ?, ?)",
-        (ativo, sinal, motivo),
+        (
+            "INSERT INTO sinais (ativo, timestamp, candle_time, sinal, motivo, modo, expiracao, tp, sl, confianca) "
+            "VALUES (?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)"
+        ),
+        (ativo, candle_time, sinal, motivo, modo, expiracao, tp, sl, confianca),
     )
     conn.commit()
     conn.close()
+
+
+def atualizar_resultado(sinal_id: int, resultado: str) -> None:
+    conn = conectar()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE sinais SET resultado = ? WHERE id = ?",
+        (resultado, sinal_id),
+    )
+    conn.commit()
+    conn.close()
+
+
+def buscar_sinais_sem_resultado() -> list[sqlite3.Row]:
+    conn = conectar()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM sinais WHERE resultado IS NULL")
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+
+def buscar_sinais_com_resultado() -> list[sqlite3.Row]:
+    conn = conectar()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM sinais WHERE resultado IN ('WIN', 'LOSS')")
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+
+def buscar_candle_por_tempo(ativo: str, open_time: str) -> Optional[sqlite3.Row]:
+    conn = conectar()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT * FROM candles WHERE ativo = ? AND open_time = ? LIMIT 1",
+        (ativo, open_time),
+    )
+    row = cur.fetchone()
+    conn.close()
+    return row

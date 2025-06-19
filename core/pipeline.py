@@ -14,9 +14,10 @@ from indicators.bollinger import adicionar_bbands
 from patterns import engolfo_de_alta, engolfo_de_baixa
 from agents import agente_decisao, agente_ia
 from core import config
+from estrategias.avaliar_resultado import avaliar_resultado_sinal
 
-ATIVO = "BTCUSDT"
-TIMEFRAME = "1m"
+ATIVO = config.ATIVO_PADRAO
+TIMEFRAME = config.TIMEFRAME
 TIMER = "30s"
 HISTORICO_MINIMO = 8640  # 30 dias de candles de 5 minutos
 
@@ -112,7 +113,7 @@ def coletar_e_processar() -> None:
 
         salvar_candle_df(pd.DataFrame([ultimo]))
 
-        historico = database.buscar_candles(ATIVO, 200)
+        historico = database.buscar_candles(ATIVO, 500)
         cols = ["ativo", "open_time", "open", "high", "low", "close", "volume"]
         df_hist = pd.DataFrame(historico, columns=cols)
         df_hist["open_time"] = pd.to_datetime(df_hist["open_time"])
@@ -137,15 +138,44 @@ def coletar_e_processar() -> None:
         }
         sinal_ia = agente_ia.gerar_sinal_ia(df_hist)
         if sinal_ia:
-            database.salvar_sinal(ATIVO, sinal_ia["sinal"], sinal_ia["motivo"])
+            database.salvar_sinal(
+                ATIVO,
+                sinal_ia["sinal"],
+                sinal_ia["motivo"],
+                config.MODO_OPERACAO,
+                config.EXPIRACAO_CANDLES if config.MODO_OPERACAO == "opcao_binaria" else None,
+                config.TAKE_PROFIT_PERCENT if config.MODO_OPERACAO == "daytrade" else None,
+                config.STOP_LOSS_PERCENT if config.MODO_OPERACAO == "daytrade" else None,
+                sinal_ia.get("confianca"),
+                open_time,
+            )
             print("✅ Sinal IA:", sinal_ia)
         else:
             sinal = agente_decisao.gerar_sinal(atual, indicadores, padroes)
             if sinal != "neutro":
-                database.salvar_sinal(ATIVO, sinal, "pipeline")
+                database.salvar_sinal(
+                    ATIVO,
+                    sinal,
+                    "pipeline",
+                    config.MODO_OPERACAO,
+                    config.EXPIRACAO_CANDLES if config.MODO_OPERACAO == "opcao_binaria" else None,
+                    config.TAKE_PROFIT_PERCENT if config.MODO_OPERACAO == "daytrade" else None,
+                    config.STOP_LOSS_PERCENT if config.MODO_OPERACAO == "daytrade" else None,
+                    None,
+                    open_time,
+                )
                 print("✅ Sinal gerado:", sinal)
             else:
                 print("Sinal neutro")
+
+        # Avalia sinais pendentes
+        sinais_pendentes = database.buscar_sinais_sem_resultado()
+        for s in sinais_pendentes:
+            if s["ativo"] != ATIVO:
+                continue
+            df_future = df_hist[df_hist["open_time"] >= pd.to_datetime(s["candle_time"])]
+            resultado = avaliar_resultado_sinal(dict(s), df_future.reset_index(drop=True))
+            database.atualizar_resultado(s["id"], resultado)
     except Exception as exc:
         print("❌ Erro no ciclo:", exc)
 

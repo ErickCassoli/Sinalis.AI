@@ -1,0 +1,1 @@
+# Estratégias e utilidades
