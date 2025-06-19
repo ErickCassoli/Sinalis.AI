@@ -14,8 +14,16 @@ def conectar() -> sqlite3.Connection:
     return conn
 
 
+def _add_column_if_not_exists(conn: sqlite3.Connection, table: str, column_def: str) -> None:
+    col_name = column_def.split()[0]
+    cur = conn.execute(f"PRAGMA table_info({table})")
+    cols = {row[1] for row in cur.fetchall()}
+    if col_name not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column_def}")
+
+
 def criar_tabelas() -> None:
-    """Cria tabelas de candles e sinais se não existirem."""
+    """Cria ou atualiza tabelas de candles e sinais."""
     conn = conectar()
     cur = conn.cursor()
     cur.execute(
@@ -46,6 +54,15 @@ def criar_tabelas() -> None:
             resultado TEXT
         )"""
     )
+
+    _add_column_if_not_exists(conn, "sinais", "candle_time TEXT")
+    _add_column_if_not_exists(conn, "sinais", "modo TEXT")
+    _add_column_if_not_exists(conn, "sinais", "expiracao INTEGER")
+    _add_column_if_not_exists(conn, "sinais", "tp REAL")
+    _add_column_if_not_exists(conn, "sinais", "sl REAL")
+    _add_column_if_not_exists(conn, "sinais", "confianca REAL")
+    _add_column_if_not_exists(conn, "sinais", "resultado TEXT")
+
     conn.commit()
     conn.close()
 
