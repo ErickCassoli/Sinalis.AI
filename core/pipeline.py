@@ -12,7 +12,7 @@ from indicators.rsi import adicionar_rsi
 from indicators.macd import adicionar_macd
 from indicators.bollinger import adicionar_bbands
 from patterns import engolfo_de_alta, engolfo_de_baixa
-from agents import agente_decisao
+from agents import agente_decisao, agente_ia
 from core import config
 
 ATIVO = "BTCUSDT"
@@ -134,12 +134,17 @@ def coletar_e_processar() -> None:
             "engolfo_alta": engolfo_de_alta(atual, anterior),
             "engolfo_baixa": engolfo_de_baixa(atual, anterior),
         }
-        sinal = agente_decisao.gerar_sinal(atual, indicadores, padroes)
-        if sinal != "neutro":
-            database.salvar_sinal(ATIVO, sinal, "pipeline")
-            print("✅ Sinal gerado:", sinal)
+        sinal_ia = agente_ia.gerar_sinal_ia(df_hist)
+        if sinal_ia:
+            database.salvar_sinal(ATIVO, sinal_ia["sinal"], sinal_ia["motivo"])
+            print("✅ Sinal IA:", sinal_ia)
         else:
-            print("Sinal neutro")
+            sinal = agente_decisao.gerar_sinal(atual, indicadores, padroes)
+            if sinal != "neutro":
+                database.salvar_sinal(ATIVO, sinal, "pipeline")
+                print("✅ Sinal gerado:", sinal)
+            else:
+                print("Sinal neutro")
     except Exception as exc:
         print("❌ Erro no ciclo:", exc)
 
